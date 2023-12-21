@@ -5,7 +5,7 @@ class DragControls with EventDispatcher {
 
   bool enabled = true;
   bool transformGroup = false;
-  final _intersections = <Intersection>[];
+  List<Intersection> _intersections = <Intersection>[];
   Object3D? _selected;
   Object3D? _hovered;
 
@@ -59,7 +59,7 @@ class DragControls with EventDispatcher {
     _raycaster.setFromCamera(_pointer, _camera);
 
     if (_selected != null) {
-      if (_raycaster.ray.intersectPlane(_plane, _intersection)) {
+      if (_raycaster.ray.intersectPlane(_plane, _intersection) != null ) {
         _selected!.position.copy(_intersection.sub(_offset).applyMatrix4(_inverseMatrix));
       }
 
@@ -71,7 +71,7 @@ class DragControls with EventDispatcher {
     // hover support
 
     if (event.pointerType == 'mouse' || event.pointerType == 'pen') {
-      _intersections.length = 0;
+      _intersections = <Intersection>[];
 
       _raycaster.setFromCamera(_pointer, _camera);
       _raycaster.intersectObjects(_objects, true, _intersections);
@@ -111,7 +111,7 @@ class DragControls with EventDispatcher {
 
     updatePointer(event);
 
-    _intersections.length = 0;
+    _intersections = <Intersection>[];
 
     _raycaster.setFromCamera(_pointer, _camera);
     _raycaster.intersectObjects(_objects, true, _intersections);
@@ -123,7 +123,7 @@ class DragControls with EventDispatcher {
         _plane.setFromNormalAndCoplanarPoint(
             _camera.getWorldDirection(_plane.normal), _worldPosition.setFromMatrixPosition(_selected!.matrixWorld));
 
-        if (_raycaster.ray.intersectPlane(_plane, _intersection)) {
+        if (_raycaster.ray.intersectPlane(_plane, _intersection) != null) {
           _inverseMatrix.copy(_selected!.parent?.matrixWorld ?? Matrix4()).invert();
           _offset.copy(_intersection).sub(_worldPosition.setFromMatrixPosition(_selected!.matrixWorld));
         }
@@ -135,7 +135,7 @@ class DragControls with EventDispatcher {
     }
   }
 
-  onPointerCancel() {
+  onPointerCancel(event) {
     if (scope.enabled == false) return;
 
     if (_selected != null) {
