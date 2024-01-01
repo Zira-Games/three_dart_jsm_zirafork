@@ -19,8 +19,6 @@ class DragControls with EventDispatcher {
   DragControls(this.objects, this.camera, this.listenableKey) : super() {
     scope = this;
     activate();
-
-    // API
   }
 
   activate() {
@@ -54,13 +52,13 @@ class DragControls with EventDispatcher {
   onPointerMove(event) {
     if (scope.enabled == false) return;
 
-    updatePointer(event);
+    final dragUpdateRecord = updatePointer(event);
 
     _raycaster.setFromCamera(_pointer, _camera);
 
     if (_selected != null) {
       if (_raycaster.ray.intersectPlane(_plane, _intersection) != null ) {
-        _selected!.position.copy(_intersection.sub(_offset).applyMatrix4(_inverseMatrix));
+        //_selected!.position.copy(_intersection.sub(_offset).applyMatrix4(_inverseMatrix));
       }
 
       scope.dispatchEvent(Event({'type': 'drag', 'object': _selected}));
@@ -109,7 +107,7 @@ class DragControls with EventDispatcher {
   onPointerDown(event) {
     if (scope.enabled == false) return;
 
-    updatePointer(event);
+    final dragUpdateRecord = updatePointer(event);
 
     _intersections = <Intersection>[];
 
@@ -147,13 +145,32 @@ class DragControls with EventDispatcher {
     // _domElement.style.cursor = _hovered ? 'pointer' : 'auto';
   }
 
-  updatePointer(event) {
+  (DragUpdateDetails, DragUpdateDetails) updatePointer(event) {
     // var rect = _domElement.getBoundingClientRect();
     var box = listenableKey.currentContext?.findRenderObject() as RenderBox;
     var size = box.size;
     var local = box.globalToLocal(Offset(0, 0));
 
-    _pointer.x = (event.clientX - local.dx) / size.width * 2 - 1;
-    _pointer.y = -(event.clientY - local.dy) / size.height * 2 + 1;
+    final updatedX = (event.clientX - local.dx) / size.width * 2 - 1;
+    final updatedY = -(event.clientY - local.dy) / size.height * 2 + 1;
+    final delta = Offset(updatedX - _pointer.x, updatedY - _pointer.y);
+
+    _pointer.x = updatedX;
+    _pointer.y = updatedY;
+
+    return (
+      DragUpdateDetails(
+          delta: delta,
+          sourceTimeStamp: event.timeStamp,
+          globalPosition: event.position,
+          primaryDelta: delta.dx
+      ),
+      DragUpdateDetails(
+          delta: delta,
+          sourceTimeStamp: event.timeStamp,
+          globalPosition: event.position,
+          primaryDelta: delta.dy
+      )
+    );
   }
 }

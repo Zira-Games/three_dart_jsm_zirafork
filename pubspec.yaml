@@ -5,8 +5,8 @@ homepage: https://github.com/wasabia/three_dart_jsm
 publish_to: 'none' 
 
 environment:
-  sdk: ">=2.12.0 <4.0.0"
-  flutter: ">=1.17.0"
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.16.0"
 
 dependencies:
   flutter:
@@ -14,7 +14,7 @@ dependencies:
   three_dart:
     git:
         url: https://github.com/Zira-Games/three_dart_zirafork
-  flutter_gl: ^0.0.20
+  flutter_gl: ^0.0.21
   typr_dart: ^0.0.2
   opentype_dart: ^0.0.1
   universal_html: ^2.0.8
@@ -23,9 +23,9 @@ dependencies:
   # flutter_webgpu:
   #   path: ../../flutter_webgpu
 
-# dependency_overrides:
-#   three_dart:
-#     path: ../../three_dart
+dependency_overrides:
+   three_dart:
+     path: ../three_dart_zirafork
 
 dev_dependencies:
   flutter_test:
