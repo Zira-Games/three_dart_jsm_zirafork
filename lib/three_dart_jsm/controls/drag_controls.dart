@@ -1,14 +1,26 @@
 part of jsm_controls;
 
+mixin DraggableObject {}
+
+class DraggableMesh extends Mesh with DraggableObject {
+  DraggableMesh(super.geometry, super.material);
+}
+
+class DraggableSprite extends Sprite with DraggableObject {
+  DraggableSprite([super.material]);
+}
+
 class DragControls with EventDispatcher {
   late DragControls scope;
 
-  bool enabled = true;
+  bool enabled = false;
   bool transformGroup = false;
+  Axis? moveAxis;
   List<Intersection> _intersections = <Intersection>[];
   Object3D? _selected;
   Object3D? _hovered;
 
+  late String id;
   late Camera camera;
   late GlobalKey<DomLikeListenableState> listenableKey;
   DomLikeListenableState get _domElement => listenableKey.currentState!;
@@ -17,24 +29,29 @@ class DragControls with EventDispatcher {
   Camera get _camera => camera;
 
   DragControls(this.objects, this.camera, this.listenableKey) : super() {
+    id = Uuid().v4();
     scope = this;
     activate();
   }
 
   activate() {
-    _domElement.addEventListener('pointermove', onPointerMove);
-    _domElement.addEventListener('pointerdown', onPointerDown);
-    _domElement.addEventListener('pointerup', onPointerCancel);
-    _domElement.addEventListener('pointerleave', onPointerCancel);
+    if( !enabled ){
+      enabled = true;
+      _domElement.addEventListener('pointermove', onPointerMove);
+      _domElement.addEventListener('pointerdown', onPointerDown);
+      _domElement.addEventListener('pointerup', onPointerCancel);
+      _domElement.addEventListener('pointerleave', onPointerCancel);
+    }
   }
 
   deactivate() {
-    _domElement.removeEventListener('pointermove', onPointerMove);
-    _domElement.removeEventListener('pointerdown', onPointerDown);
-    _domElement.removeEventListener('pointerup', onPointerCancel);
-    _domElement.removeEventListener('pointerleave', onPointerCancel);
-
-    // _domElement.style.cursor = '';
+    if( enabled ) {
+      enabled = false;
+      _domElement.removeEventListener('pointermove', onPointerMove);
+      _domElement.removeEventListener('pointerdown', onPointerDown);
+      _domElement.removeEventListener('pointerup', onPointerCancel);
+      _domElement.removeEventListener('pointerleave', onPointerCancel);
+    }
   }
 
   dispose() {
@@ -56,14 +73,27 @@ class DragControls with EventDispatcher {
 
     _raycaster.setFromCamera(_pointer, _camera);
 
+
     if (_selected != null) {
       if (_raycaster.ray.intersectPlane(_plane, _intersection) != null ) {
         //_selected!.position.copy(_intersection.sub(_offset).applyMatrix4(_inverseMatrix));
       }
 
-      scope.dispatchEvent(Event({'type': 'drag', 'object': _selected}));
+      if( _selected is DraggableObject ){
+        if( moveAxis == Axis.horizontal && dragUpdateRecord.$1 != null ){
+          _selected!.dispatchEvent(Event({'type': 'horizontaldragupdate', 'details': dragUpdateRecord.$1! }));
+        }
+        if( moveAxis == Axis.vertical && dragUpdateRecord.$2 != null ){
+          _selected!.dispatchEvent(Event({'type': 'verticaldragupdate', 'details': dragUpdateRecord.$2! }));
+        }
+      }
+    }
 
-      return;
+    if( moveAxis == Axis.horizontal && dragUpdateRecord.$1 != null ){
+      scope.dispatchEvent(Event({'type': 'horizontaldragupdate', 'object': _selected, 'details': dragUpdateRecord.$1! }));
+    }
+    if( moveAxis == Axis.vertical && dragUpdateRecord.$2 != null ){
+      scope.dispatchEvent(Event({'type': 'verticaldragupdate', 'object': _selected, 'details': dragUpdateRecord.$2! }));
     }
 
     // hover support
@@ -83,21 +113,18 @@ class DragControls with EventDispatcher {
         if (_hovered != object && _hovered != null) {
           scope.dispatchEvent(Event({'type': 'hoveroff', 'object': _hovered}));
 
-          // _domElement.style.cursor = 'auto';
           _hovered = null;
         }
 
         if (_hovered != object) {
           scope.dispatchEvent(Event({'type': 'hoveron', 'object': object}));
 
-          // _domElement.style.cursor = 'pointer';
           _hovered = object;
         }
       } else {
         if (_hovered != null) {
           scope.dispatchEvent(Event({'type': 'hoveroff', 'object': _hovered}));
 
-          // _domElement.style.cursor = 'auto';
           _hovered = null;
         }
       }
@@ -108,6 +135,7 @@ class DragControls with EventDispatcher {
     if (scope.enabled == false) return;
 
     final dragUpdateRecord = updatePointer(event);
+    final dragStart = DragStartDetails(sourceTimeStamp: DateTime.now().difference(DateTime.fromMicrosecondsSinceEpoch(0)), globalPosition: Offset(event.clientX, event.clientY));
 
     _intersections = <Intersection>[];
 
@@ -125,52 +153,87 @@ class DragControls with EventDispatcher {
           _inverseMatrix.copy(_selected!.parent?.matrixWorld ?? Matrix4()).invert();
           _offset.copy(_intersection).sub(_worldPosition.setFromMatrixPosition(_selected!.matrixWorld));
         }
+
+        if( _selected is DraggableObject ){
+          if( moveAxis == Axis.horizontal ){
+            _selected!.dispatchEvent(Event({'type': 'horizontaldragstart', 'details': dragStart }));
+          }
+          if( moveAxis == Axis.vertical ){
+            _selected!.dispatchEvent(Event({'type': 'verticaldragstart', 'details': dragStart }));
+          }
+        }
+
       }
 
-      // _domElement.style.cursor = 'move';
-
-      scope.dispatchEvent(Event({'type': 'dragstart', 'object': _selected}));
     }
+
+    if( moveAxis == Axis.horizontal ){
+      scope.dispatchEvent(Event({'type': 'horizontaldragstart', 'object': _selected, 'details': dragStart }));
+    }
+    if( moveAxis == Axis.vertical ){
+      scope.dispatchEvent(Event({'type': 'verticaldragstart', 'object': _selected, 'details': dragStart }));
+    }
+
   }
 
   onPointerCancel(event) {
     if (scope.enabled == false) return;
 
     if (_selected != null) {
-      scope.dispatchEvent(Event({'type': 'dragend', 'object': _selected}));
-
+      if( _selected is DraggableObject ){
+        if( moveAxis == Axis.horizontal ){
+          _selected!.dispatchEvent(Event({'type': 'horizontaldragend' }));
+        }
+        if( moveAxis == Axis.vertical ){
+          _selected!.dispatchEvent(Event({'type': 'verticaldragend' }));
+        }
+      }
       _selected = null;
     }
 
-    // _domElement.style.cursor = _hovered ? 'pointer' : 'auto';
+    if( moveAxis == Axis.horizontal ){
+      scope.dispatchEvent(Event({'type': 'horizontaldragend', 'object': _selected }));
+    }
+    if( moveAxis == Axis.vertical ){
+      scope.dispatchEvent(Event({'type': 'verticaldragend', 'object': _selected }));
+    }
+
+    moveAxis = null;
   }
 
-  (DragUpdateDetails, DragUpdateDetails) updatePointer(event) {
-    // var rect = _domElement.getBoundingClientRect();
+  (DragUpdateDetails?, DragUpdateDetails?) updatePointer(event) {
     var box = listenableKey.currentContext?.findRenderObject() as RenderBox;
     var size = box.size;
     var local = box.globalToLocal(Offset(0, 0));
 
-    final updatedX = (event.clientX - local.dx) / size.width * 2 - 1;
-    final updatedY = -(event.clientY - local.dy) / size.height * 2 + 1;
-    final delta = Offset(updatedX - _pointer.x, updatedY - _pointer.y);
+    final updatedX = (event.clientX) / size.width * 2 - 1;
+    final updatedY = -(event.clientY) / size.height * 2 + 1;
+    final delta = Offset(_pointer.x == 0 ? 0 : updatedX - _pointer.x, _pointer.y == 0 ? 0 : updatedY - _pointer.y);
 
     _pointer.x = updatedX;
     _pointer.y = updatedY;
 
+    if( moveAxis == null ){
+      if( delta.dx.abs() > delta.dy.abs() ) {
+        moveAxis = Axis.horizontal;
+      } else {
+        moveAxis = Axis.vertical;
+      }
+    }
+
     return (
-      DragUpdateDetails(
-          delta: delta,
-          sourceTimeStamp: event.timeStamp,
-          globalPosition: event.position,
+      moveAxis == Axis.horizontal && delta.dx != 0 ? DragUpdateDetails(
+          delta: Offset(delta.dx, 0),
+          sourceTimeStamp: DateTime.now().difference(DateTime.fromMicrosecondsSinceEpoch(0)),
+          globalPosition: Offset(updatedX, updatedY),
           primaryDelta: delta.dx
-      ),
-      DragUpdateDetails(
-          delta: delta,
-          sourceTimeStamp: event.timeStamp,
-          globalPosition: event.position,
+      ) : null,
+      moveAxis == Axis.vertical && delta.dy != 0 ? DragUpdateDetails(
+          delta: Offset(0, delta.dy),
+          sourceTimeStamp: DateTime.now().difference(DateTime.fromMicrosecondsSinceEpoch(0)),
+          globalPosition: Offset(updatedX, updatedY),
           primaryDelta: delta.dy
-      )
+      ) : null
     );
   }
 }
